@@ -55,6 +55,12 @@ extension String {
 }
 
 extension String {
+    static var storyboardIdRegex: String {
+        return "((?<=storyboardIdentifier=\").*?(?=\" customModule)|(?<=action selector=\").*?(?=:\"))"
+    }
+}
+
+extension String {
     var trueName: String {
         return components(separatedBy: "(").first ?? self
     }

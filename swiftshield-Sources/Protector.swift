@@ -66,6 +66,18 @@ class Protector {
                 element.attributes["customClass"] = protectedClass
             }
         }
+        if supportedModules?.contains(currentModule) != false {
+            if let customClass = element.attributes["storyboardIdentifier"], let protectedClass = obfuscationData.obfuscationDict[customClass] {
+                Logger.log(.protectedReference(originalName: customClass, protectedName: protectedClass))
+                element.attributes["storyboardIdentifier"] = protectedClass
+            }
+        }
+//        if supportedModules?.contains(currentModule) != false {
+//            if let customClass = element.attributes["reuseIdentifier"], let protectedClass = obfuscationData.obfuscationDict[customClass] {
+//                Logger.log(.protectedReference(originalName: customClass, protectedName: protectedClass))
+//                element.attributes["reuseIdentifier"] = protectedClass
+//            }
+//        }
         if element.name == "action", let actionSelector = element.attributes["selector"], let trueName = actionSelector.components(separatedBy: ":").first, trueName.count > 4, let protectedClass = obfuscationData.obfuscationDict[trueName] {
             let actionModule = idToXML[element.attributes["destination"] ?? ""]?.attributes["customModule"] ?? ""
             if supportedModules?.contains(actionModule) != false {
