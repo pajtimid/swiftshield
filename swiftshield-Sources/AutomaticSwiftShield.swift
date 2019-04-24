@@ -73,6 +73,11 @@ class AutomaticSwiftShield: Protector {
                                                     return
                 }
                 let name = data.name
+                // coredata genrate file use origin name
+                
+//                if file.path.contains("DerivedSources/CoreDataGenerated") {
+//                    obfuscationData.obfuscationDict[name] = name
+//                }
                 let usr = data.usr
                 obfuscationData.usrDict.insert(usr)
                 if dict.getString(.receiverId) == nil {
