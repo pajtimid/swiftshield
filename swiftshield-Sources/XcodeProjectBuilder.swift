@@ -4,6 +4,7 @@ final class XcodeProjectBuilder {
     let projectToBuild: String
     let schemeToBuild: String
     let modulesToIgnore: Set<String>
+    let filesToIgnore: Set<String>
 
     private typealias MutableModuleData = (source: [File], xibs: [File], plists: [File], args: [String])
     private typealias MutableModuleDictionary = OrderedDictionary<String, MutableModuleData>
@@ -12,15 +13,19 @@ final class XcodeProjectBuilder {
         return projectToBuild.hasSuffix(".xcworkspace")
     }
 
-    init(projectToBuild: String, schemeToBuild: String, modulesToIgnore: Set<String>) {
+    init(projectToBuild: String, schemeToBuild: String, modulesToIgnore: Set<String>, filesToIgnore: Set<String>) {
         self.projectToBuild = projectToBuild
         self.schemeToBuild = schemeToBuild
         self.modulesToIgnore = modulesToIgnore
+        self.filesToIgnore = filesToIgnore
     }
 
     func getModulesAndCompilerArguments() -> [Module] {
         if modulesToIgnore.isEmpty == false {
             Logger.log(.ignoreModules(modules: modulesToIgnore))
+        }
+        if filesToIgnore.isEmpty == false {
+            Logger.log(.ignoreFiles(modules: filesToIgnore))
         }
         Logger.log(.buildingProject)
         let path = "/usr/bin/xcodebuild"

@@ -30,13 +30,13 @@ class DeclarationTypeTests: XCTestCase {
             XCTAssertEqual(sourceKit.declarationType(for: refKind), nil)
             XCTAssertEqual(sourceKit.referenceType(kind: refKind), .method)
         }
-        for property in ["var.instance", "var.static", "var.class"] {
-            let declKind = declPrefix + property
-            XCTAssertEqual(sourceKit.declarationType(for: declKind), nil)
-            XCTAssertEqual(sourceKit.referenceType(kind: declKind), nil)
-            let refKind = refPrefix + property
-            XCTAssertEqual(sourceKit.declarationType(for: refKind), nil)
-            XCTAssertEqual(sourceKit.referenceType(kind: refKind), nil)
-        }
+//        for property in ["var.instance", "var.static", "var.class"] {
+//            let declKind = declPrefix + property
+//            XCTAssertEqual(sourceKit.declarationType(for: declKind), nil)
+//            XCTAssertEqual(sourceKit.referenceType(kind: declKind), nil)
+//            let refKind = refPrefix + property
+//            XCTAssertEqual(sourceKit.declarationType(for: refKind), nil)
+//            XCTAssertEqual(sourceKit.referenceType(kind: refKind), nil)
+//        }
     }
 }

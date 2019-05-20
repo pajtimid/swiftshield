@@ -12,6 +12,7 @@ enum LogType {
     case foundReference(name: String, usr: String, at: File, line: Int, column: Int, newName: String)
     case projectError
     case ignoreModules(modules: Set<String>)
+    case ignoreFiles(modules: Set<String>)
     case plistError(info: String)
 
     //Shared
@@ -98,6 +99,8 @@ enum LogType {
             return "Using tag: \(tag)"
         case let .ignoreModules(modules):
             return "Ignoring modules: \(modules.joined(separator: ", "))"
+        case let .ignoreFiles(files):
+            return "Ignoring Files: \(files.joined(separator: ", "))"
         case .deobfuscatorStarted:
             return "Deobfuscating..."
         case let .foundObfuscatedReference(ref, original):

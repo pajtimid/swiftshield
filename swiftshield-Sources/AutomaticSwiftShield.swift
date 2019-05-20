@@ -1,34 +1,44 @@
 import Foundation
 
 class AutomaticSwiftShield: Protector {
-
+    
     let sourceKit: SourceKit
     let projectToBuild: String
     let schemeToBuild: String
     let modulesToIgnore: Set<String>
-
+    
+    let filesToIgnore: Set<String>
+    let excludedPrefixTag: String
+    let excludedSuffixTag: String
+    
     var isWorkspace: Bool {
         return projectToBuild.hasSuffix(".xcworkspace")
     }
-
+    
     init(basePath: String,
          projectToBuild: String,
          schemeToBuild: String,
          modulesToIgnore: Set<String>,
          protectedClassNameSize: Int,
          dryRun: Bool,
-         sourceKit: SourceKit = .init()) {
+         sourceKit: SourceKit = .init(),
+         classesToIgnore: Set<String>,
+         excludedPrefixTag: String,
+         excludedSuffixTag: String) {
         self.sourceKit = sourceKit
         self.projectToBuild = projectToBuild
         self.schemeToBuild = schemeToBuild
         self.modulesToIgnore = modulesToIgnore
+        self.filesToIgnore = classesToIgnore
+        self.excludedPrefixTag = excludedPrefixTag
+        self.excludedSuffixTag = excludedSuffixTag
         super.init(basePath: basePath, protectedClassNameSize: protectedClassNameSize, dryRun: dryRun)
         if self.schemeToBuild.isEmpty || self.projectToBuild.isEmpty {
             Logger.log(.helpText)
             exit(error: true)
         }
     }
-
+    
     override func protect() -> ObfuscationData {
         SourceKit.start()
         defer {
@@ -38,7 +48,7 @@ class AutomaticSwiftShield: Protector {
             Logger.log(.projectError)
             exit(error: true)
         }
-        let projectBuilder = XcodeProjectBuilder(projectToBuild: projectToBuild, schemeToBuild: schemeToBuild, modulesToIgnore: modulesToIgnore)
+        let projectBuilder = XcodeProjectBuilder(projectToBuild: projectToBuild, schemeToBuild: schemeToBuild, modulesToIgnore: modulesToIgnore, filesToIgnore: filesToIgnore)
         let modules = projectBuilder.getModulesAndCompilerArguments()
         let obfuscationData = AutomaticObfuscationData(modules: modules)
         index(obfuscationData: obfuscationData)
@@ -53,7 +63,7 @@ class AutomaticSwiftShield: Protector {
         }
         return obfuscationData
     }
-
+    
     func index(obfuscationData: AutomaticObfuscationData) {
         var fileDataArray: [(file: File, module: Module)] = []
         for module in obfuscationData.modules {
@@ -75,9 +85,9 @@ class AutomaticSwiftShield: Protector {
                 let name = data.name
                 // coredata genrate file use origin name
                 
-//                if file.path.contains("DerivedSources/CoreDataGenerated") {
-//                    obfuscationData.obfuscationDict[name] = name
-//                }
+                if file.path.contains("DerivedSources/CoreDataGenerated") {
+                    obfuscationData.obfuscationDict[name] = name
+                }
                 let usr = data.usr
                 obfuscationData.usrDict.insert(usr)
                 if dict.getString(.receiverId) == nil {
@@ -88,7 +98,7 @@ class AutomaticSwiftShield: Protector {
             obfuscationData.indexedFiles.append((file, resp))
         }
     }
-
+    
     override func writeToFile(data: ObfuscationData) {
         var path = "\(schemeToBuild)"
         for plist in (data as? AutomaticObfuscationData)?.mainModule?.plists ?? [] {
@@ -111,26 +121,39 @@ extension AutomaticSwiftShield {
         }
         return resp
     }
-
+    
     private func getNameData(from dict: SourceKitdResponse.Dictionary,
                              obfuscationData: ObfuscationData) -> (name: String,
-                                                                   usr: String,
-                                                                   obfuscatedName: String)? {
-        let kind = dict.getUID(.kindId).asString
-        guard sourceKit.declarationType(for: kind) != nil else {
-            return nil
-        }
-        guard let name = dict.getString(.nameId)?.trueName, let usr = dict.getString(.usrId) else {
-            return nil
-        }
-        guard let protected = obfuscationData.obfuscationDict[name] else {
-            let newName = String.random(length: self.protectedClassNameSize, excluding: obfuscationData.allObfuscatedNames)
-            obfuscationData.obfuscationDict[name] = newName
-            return (name, usr, newName)
-        }
-        return (name, usr, protected)
+        usr: String,
+        obfuscatedName: String)? {
+            let kind = dict.getUID(.kindId).asString
+            guard sourceKit.declarationType(for: kind) != nil else {
+                return nil
+            }
+            guard let name = dict.getString(.nameId)?.trueName, let usr = dict.getString(.usrId) else {
+                return nil
+            }
+            if self.filesToIgnore.contains(name) {
+                return nil
+            }
+            
+            if self.excludedPrefixTag != "" && name.hasPrefix(self.excludedPrefixTag) {
+                return nil
+            }
+            
+            if self.excludedSuffixTag != "" && name.hasSuffix(excludedSuffixTag) {
+                return nil
+            }
+            
+            
+            guard let protected = obfuscationData.obfuscationDict[name] else {
+                let newName = String.random(length: self.protectedClassNameSize, excluding: obfuscationData.allObfuscatedNames)
+                obfuscationData.obfuscationDict[name] = newName
+                return (name, usr, newName)
+            }
+            return (name, usr, protected)
     }
-
+    
     func findReferencesInIndexed(obfuscationData: AutomaticObfuscationData) {
         Logger.log(.searchingReferencesOfUsr)
         for (file, response) in obfuscationData.indexedFiles {
@@ -169,7 +192,7 @@ extension AutomaticSwiftShield {
             }
         }
     }
-
+    
     private func isReferencingInternal(type: SourceKit.DeclarationType,
                                        kind: String,
                                        variant: SourceKitdResponse.Variant,
@@ -206,7 +229,7 @@ extension AutomaticSwiftShield {
         }
         return isReference
     }
-
+    
     func overwriteFiles(obfuscationData: AutomaticObfuscationData) {
         for (file,references) in obfuscationData.referencesDict {
             Logger.log(.overwriting(file: file))
@@ -215,7 +238,7 @@ extension AutomaticSwiftShield {
             file.write(obfuscatedFile)
         }
     }
-
+    
     func generateObfuscatedFile(fromString data: String, references: [ReferenceData], obfuscationData: ObfuscationData) -> String {
         var sortedReferences = references.filterDuplicates { $0.line == $1.line && $0.column == $1.column }.sorted(by: lesserPosition)
         var currentReference = 0
@@ -250,29 +273,29 @@ extension AutomaticSwiftShield {
         }
         return charArray.joined()
     }
-
+    
     func obfuscateNSPrincipalClassPlists(obfuscationData: AutomaticObfuscationData) {
         for plist in obfuscationData.plists {
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: plist.path)),
-                  let xmlDoc = try? AEXMLDocument(xml: data, options: AEXMLOptions()) else {
-                Logger.log(.plistError(info: "Failed to open \(plist.path)"))
-                exit(error: true)
+                let xmlDoc = try? AEXMLDocument(xml: data, options: AEXMLOptions()) else {
+                    Logger.log(.plistError(info: "Failed to open \(plist.path)"))
+                    exit(error: true)
             }
             obfuscateNSPrincipalClass(plistXml: xmlDoc, obfuscationData: obfuscationData)
             plist.write(xmlDoc.xml)
         }
     }
-
+    
     private func obfuscateNSPrincipalClass(plistXml: AEXMLElement, obfuscationData: AutomaticObfuscationData) {
         let children = plistXml.children
         for i in 0..<children.count {
             if children[i].value == "NSExtensionPrincipalClass" ||
-               children[i].value == "WKExtensionDelegateClassName" ||
-               children[i].value == "CLKComplicationPrincipalClass" {
+                children[i].value == "WKExtensionDelegateClassName" ||
+                children[i].value == "CLKComplicationPrincipalClass" {
                 let moduleName = "$(PRODUCT_MODULE_NAME)"
                 let currentName = (children[i+1].value ?? "")
-                                  .components(separatedBy: "\(moduleName).")
-                                  .last ?? ""
+                    .components(separatedBy: "\(moduleName).")
+                    .last ?? ""
                 let protectedName = obfuscationData.obfuscationDict[currentName] ?? currentName
                 children[i+1].value = moduleName + "." + protectedName
             } else {
@@ -280,12 +303,12 @@ extension AutomaticSwiftShield {
             }
         }
     }
-
+    
     func getPlistVersionAndNumber(_ plist: File) -> (String, String)? {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: plist.path)),
-              let xmlDoc = try? AEXMLDocument(xml: data, options: AEXMLOptions()) else {
-            Logger.log(.plistError(info: "Failed to open \(plist.path)"))
-            exit(error: true)
+            let xmlDoc = try? AEXMLDocument(xml: data, options: AEXMLOptions()) else {
+                Logger.log(.plistError(info: "Failed to open \(plist.path)"))
+                exit(error: true)
         }
         guard let children = xmlDoc.root.children.first?.children else {
             return nil
